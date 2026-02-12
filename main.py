@@ -2,22 +2,24 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from google import genai  # Gemini generate_content pattern [web:61]
+from google import genai  # Gemini: client.models.generate_content(...) [web:61]
 
+# ----- Paths (absolute, so Render can't mess it up) -----
 BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(title="Medical Diagnosis Assistant (Capstone)", version="1.0.0")
 
-# Safe static mount (won't crash if folder missing)
-STATIC_DIR = BASE_DIR / "static"
+# Mount static only if present (avoids runtime crash if missing)
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR), check_dir=True), name="static")
 
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 DISCLAIMER = (
     "Disclaimer: Educational clinical decision support only. "
@@ -99,7 +101,8 @@ Write:
 Keep it concise.
 """.strip()
 
-    resp = gemini_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)  # [web:61]
+    # Gemini docs: client.models.generate_content(model=..., contents=...) [web:61]
+    resp = gemini_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
     return resp.text or ""
 
 # ---------- Module 4: Report ----------
@@ -121,51 +124,107 @@ Gemini AI Explanation:
 {ai_text}
 """
 
-# ---------- Routes ----------
+# ---------- Debug routes (help you finish tonight) ----------
+@app.get("/ping", response_class=HTMLResponse)
+def ping():
+    return "pong"
+
+@app.get("/debug/templates", response_class=JSONResponse)
+def debug_templates():
+    return {
+        "base_dir": str(BASE_DIR),
+        "templates_dir": str(TEMPLATES_DIR),
+        "static_dir": str(STATIC_DIR),
+        "templates_exists": TEMPLATES_DIR.exists(),
+        "static_exists": STATIC_DIR.exists(),
+        "templates_files": sorted([p.name for p in TEMPLATES_DIR.glob("*.html")]) if TEMPLATES_DIR.exists() else [],
+    }
+
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
 
+# ---------- Pages ----------
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="dashboard.html",
+        context={"request": request, "disclaimer": DISCLAIMER},
+    )
 
 @app.get("/about", response_class=HTMLResponse)
 def about(request: Request):
-    return templates.TemplateResponse("about.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="about.html",
+        context={"request": request, "disclaimer": DISCLAIMER, "model": GEMINI_MODEL},
+    )
 
+# Module 1
 @app.get("/module/icd", response_class=HTMLResponse)
 def module1_get(request: Request):
-    return templates.TemplateResponse("module1_icd.html", {"request": request, "results": None, "symptoms": ""})
+    return templates.TemplateResponse(
+        request=request,
+        name="module1_icd.html",
+        context={"request": request, "results": None, "symptoms": ""},
+    )
 
 @app.post("/module/icd", response_class=HTMLResponse)
 def module1_post(request: Request, symptoms: str = Form(...)):
     results = icd_rank(symptoms)
-    return templates.TemplateResponse("module1_icd.html", {"request": request, "results": results, "symptoms": symptoms})
+    return templates.TemplateResponse(
+        request=request,
+        name="module1_icd.html",
+        context={"request": request, "results": results, "symptoms": symptoms},
+    )
 
+# Module 2
 @app.get("/module/immuno", response_class=HTMLResponse)
 def module2_get(request: Request):
-    return templates.TemplateResponse("module2_immuno.html", {"request": request, "profile": None, "symptoms": ""})
+    return templates.TemplateResponse(
+        request=request,
+        name="module2_immuno.html",
+        context={"request": request, "profile": None, "symptoms": ""},
+    )
 
 @app.post("/module/immuno", response_class=HTMLResponse)
 def module2_post(request: Request, symptoms: str = Form(...)):
     profile = immuno_profile_proxy(symptoms)
-    return templates.TemplateResponse("module2_immuno.html", {"request": request, "profile": profile, "symptoms": symptoms})
+    return templates.TemplateResponse(
+        request=request,
+        name="module2_immuno.html",
+        context={"request": request, "profile": profile, "symptoms": symptoms},
+    )
 
+# Module 3
 @app.get("/module/ai", response_class=HTMLResponse)
 def module3_get(request: Request):
-    return templates.TemplateResponse("module3_ai.html", {"request": request, "ai_text": None, "symptoms": ""})
+    return templates.TemplateResponse(
+        request=request,
+        name="module3_ai.html",
+        context={"request": request, "ai_text": None, "symptoms": ""},
+    )
 
 @app.post("/module/ai", response_class=HTMLResponse)
 def module3_post(request: Request, symptoms: str = Form(...)):
     cands = icd_rank(symptoms)
     prof = immuno_profile_proxy(symptoms)
     ai_text = gemini_explain(symptoms, cands, prof)
-    return templates.TemplateResponse("module3_ai.html", {"request": request, "ai_text": ai_text, "symptoms": symptoms})
+    return templates.TemplateResponse(
+        request=request,
+        name="module3_ai.html",
+        context={"request": request, "ai_text": ai_text, "symptoms": symptoms},
+    )
 
+# Module 4
 @app.get("/module/reports", response_class=HTMLResponse)
 def module4_get(request: Request):
-    return templates.TemplateResponse("module4_reports.html", {"request": request, "report": None, "symptoms": ""})
+    return templates.TemplateResponse(
+        request=request,
+        name="module4_reports.html",
+        context={"request": request, "report": None, "symptoms": ""},
+    )
 
 @app.post("/module/reports", response_class=HTMLResponse)
 def module4_post(request: Request, symptoms: str = Form(...)):
@@ -173,4 +232,8 @@ def module4_post(request: Request, symptoms: str = Form(...)):
     prof = immuno_profile_proxy(symptoms)
     ai_text = gemini_explain(symptoms, cands, prof)
     report = build_report(symptoms, cands, prof, ai_text)
-    return templates.TemplateResponse("module4_reports.html", {"request": request, "report": report, "symptoms": symptoms})
+    return templates.TemplateResponse(
+        request=request,
+        name="module4_reports.html",
+        context={"request": request, "report": report, "symptoms": symptoms},
+    )
