@@ -9,14 +9,15 @@ from fastapi.templating import Jinja2Templates
 
 from itsdangerous import URLSafeSerializer, BadSignature
 
-from google import genai  # Gemini generate_content docs pattern [web:61]
+from google import genai  # Gemini: client.models.generate_content(...) [web:61]
 
 
 # ---------------- App setup ----------------
 BASE_DIR = Path(__file__).resolve().parent
 
-app = FastAPI(title="IMDS Capstone Web", version="1.0.0")
+app = FastAPI(title="Medical Diagnosis Assistant (Capstone)", version="1.0.0")
 
+# Mount static only if it exists (prevents Render crash). StaticFiles checks directory by default. [web:97]
 STATIC_DIR = BASE_DIR / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR), check_dir=True), name="static")
@@ -36,9 +37,8 @@ DEMO_USER = os.getenv("DEMO_USER", "student")
 DEMO_PASS = os.getenv("DEMO_PASS", "student123")
 SESSION_COOKIE = "imds_session"
 
-# If you later use a separate frontend domain, cookie settings must change.
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"  # set to 1 after everything works
-COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")   # lax is fine for same-site
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 COOKIE_PATH = "/"
 
 def set_session_cookie(resp: RedirectResponse, username: str):
@@ -72,7 +72,7 @@ def login_required(request: Request) -> Optional[RedirectResponse]:
     return None
 
 
-# ---------------- Module 1: ICD candidate suggestion (demo dataset) ----------------
+# ---------------- Module 1: ICD suggestion (demo) ----------------
 ICD10_DEMO = [
     {"code": "J10.1", "title": "Influenza with other respiratory manifestations", "keywords": ["flu", "influenza", "fever", "cough", "myalgia"]},
     {"code": "J00", "title": "Acute nasopharyngitis [common cold]", "keywords": ["cold", "coryza", "sneezing", "sore", "throat"]},
@@ -93,7 +93,7 @@ def icd_rank(symptoms: str):
     return out[:5]
 
 
-# ---------------- Module 2: Immunoinformatics profiling (proxy) ----------------
+# ---------------- Module 2: Immuno profiling (proxy) ----------------
 def immuno_profile_proxy(symptoms: str):
     t = symptoms.lower()
     inflammation = 0.2
@@ -174,8 +174,124 @@ Gemini AI Explanation:
 
 
 # ---------------- Routes ----------------
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
     return RedirectResponse("/dashboard" if get_user(request) else "/login", status_code=303)
 
-@app.get("/login
+@app.get("/login", response_class=HTMLResponse)
+def login_get(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+
+@app.post("/login", response_class=HTMLResponse)
+def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
+    # Strip spaces so accidental spaces in the form don't break login
+    username = (username or "").strip()
+    password = (password or "").strip()
+
+    if username == DEMO_USER and password == DEMO_PASS:
+        resp = RedirectResponse("/dashboard", status_code=303)
+        set_session_cookie(resp, username=username)
+        return resp
+
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "error": "Invalid username or password."},
+        status_code=401,
+    )
+
+@app.get("/logout")
+def logout():
+    resp = RedirectResponse("/login", status_code=303)
+    clear_session_cookie(resp)
+    return resp
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request):
+    gate = login_required(request)
+    if gate:
+        return gate
+    return templates.TemplateResponse("dashboard.html", {"request": request, "user": get_user(request)})
+
+@app.get("/about", response_class=HTMLResponse)
+def about(request: Request):
+    gate = login_required(request)
+    if gate:
+        return gate
+    return templates.TemplateResponse("about.html", {"request": request})
+
+# Module 1
+@app.get("/module/icd", response_class=HTMLResponse)
+def module1_get(request: Request):
+    gate = login_required(request)
+    if gate:
+        return gate
+    return templates.TemplateResponse("module1_icd.html", {"request": request, "results": None, "symptoms": ""})
+
+@app.post("/module/icd", response_class=HTMLResponse)
+def module1_post(request: Request, symptoms: str = Form(...)):
+    gate = login_required(request)
+    if gate:
+        return gate
+    results = icd_rank(symptoms)
+    return templates.TemplateResponse("module1_icd.html", {"request": request, "results": results, "symptoms": symptoms})
+
+# Module 2
+@app.get("/module/immuno", response_class=HTMLResponse)
+def module2_get(request: Request):
+    gate = login_required(request)
+    if gate:
+        return gate
+    return templates.TemplateResponse("module2_immuno.html", {"request": request, "profile": None, "symptoms": ""})
+
+@app.post("/module/immuno", response_class=HTMLResponse)
+def module2_post(request: Request, symptoms: str = Form(...)):
+    gate = login_required(request)
+    if gate:
+        return gate
+    profile = immuno_profile_proxy(symptoms)
+    return templates.TemplateResponse("module2_immuno.html", {"request": request, "profile": profile, "symptoms": symptoms})
+
+# Module 3
+@app.get("/module/ai", response_class=HTMLResponse)
+def module3_get(request: Request):
+    gate = login_required(request)
+    if gate:
+        return gate
+    return templates.TemplateResponse("module3_ai.html", {"request": request, "ai_text": None, "symptoms": ""})
+
+@app.post("/module/ai", response_class=HTMLResponse)
+def module3_post(request: Request, symptoms: str = Form(...)):
+    gate = login_required(request)
+    if gate:
+        return gate
+
+    cands = icd_rank(symptoms)
+    prof = immuno_profile_proxy(symptoms)
+    ai_text = gemini_explain(symptoms, cands, prof)
+
+    return templates.TemplateResponse("module3_ai.html", {"request": request, "ai_text": ai_text, "symptoms": symptoms})
+
+# Module 4
+@app.get("/module/reports", response_class=HTMLResponse)
+def module4_get(request: Request):
+    gate = login_required(request)
+    if gate:
+        return gate
+    return templates.TemplateResponse("module4_reports.html", {"request": request, "report": None, "symptoms": ""})
+
+@app.post("/module/reports", response_class=HTMLResponse)
+def module4_post(request: Request, symptoms: str = Form(...)):
+    gate = login_required(request)
+    if gate:
+        return gate
+
+    cands = icd_rank(symptoms)
+    prof = immuno_profile_proxy(symptoms)
+    ai_text = gemini_explain(symptoms, cands, prof)
+    report = build_report(symptoms, cands, prof, ai_text)
+
+    return templates.TemplateResponse("module4_reports.html", {"request": request, "report": report, "symptoms": symptoms})
