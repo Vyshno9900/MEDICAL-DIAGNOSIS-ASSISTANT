@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="Medical Diagnosis Assistant (Capstone)", version="1.0.0")
 
-# Safe static mount (won't crash if folder missing). StaticFiles checks directory by default. [web:97]
+# Safe static mount (prevents crash if folder missing)
 STATIC_DIR = BASE_DIR / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR), check_dir=True), name="static")
@@ -24,7 +24,7 @@ DISCLAIMER = (
     "Not a medical diagnosis and not medical advice."
 )
 
-# ----- Module 1: ICD (demo) -----
+# ---------- Module 1: ICD suggestion (demo) ----------
 ICD10_DEMO = [
     {"code": "J10.1", "title": "Influenza with other respiratory manifestations", "keywords": ["flu", "influenza", "fever", "cough", "myalgia"]},
     {"code": "J00", "title": "Acute nasopharyngitis [common cold]", "keywords": ["cold", "coryza", "sneezing", "sore", "throat"]},
@@ -44,7 +44,7 @@ def icd_rank(symptoms: str):
     out.sort(key=lambda r: r["score"], reverse=True)
     return out[:5]
 
-# ----- Module 2: Immuno profiling (proxy) -----
+# ---------- Module 2: Immuno profiling (proxy) ----------
 def immuno_profile_proxy(symptoms: str):
     t = symptoms.lower()
     inflammation = 0.2
@@ -62,10 +62,14 @@ def immuno_profile_proxy(symptoms: str):
     elif "autoimmune" in t:
         axis = "Autoimmune-like"
 
-    return {"immune_axis": axis, "inflammation_score": inflammation, "notes": "Proxy profiling (replace with your pipeline)."}
+    return {
+        "immune_axis": axis,
+        "inflammation_score": inflammation,
+        "notes": "Proxy profiling from symptom text. Replace with your immunoinformatics pipeline.",
+    }
 
-# ----- Module 3: Gemini AI -----
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash")
+# ---------- Module 3: Gemini AI (3 Flash Preview) ----------
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 gemini_key = os.getenv("GEMINI_API_KEY", "")
 gemini_client = genai.Client(api_key=gemini_key) if gemini_key else None
 
@@ -95,10 +99,11 @@ Write:
 Keep it concise.
 """.strip()
 
-    resp = gemini_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)  # [web:61]
+    # Documented call pattern: client.models.generate_content(model=..., contents=...) [web:61]
+    resp = gemini_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
     return resp.text or ""
 
-# ----- Module 4: Report -----
+# ---------- Module 4: Report ----------
 def build_report(symptoms: str, icd_candidates, immuno_profile, ai_text: str) -> str:
     return f"""IMDS CAPSTONE REPORT (Demo)
 
@@ -117,14 +122,14 @@ Gemini AI Explanation:
 {ai_text}
 """
 
-# ----- Routes -----
+# ---------- Routes ----------
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request, "user": "Guest"})
+    return templates.TemplateResponse("dashboard.html", {"request": request})
 
 @app.get("/about", response_class=HTMLResponse)
 def about(request: Request):
