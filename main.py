@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="Medical Diagnosis Assistant (Capstone)", version="1.0.0")
 
-# Safe static mount (prevents crash if folder missing)
+# Safe static mount (won't crash if folder missing)
 STATIC_DIR = BASE_DIR / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR), check_dir=True), name="static")
@@ -68,7 +68,7 @@ def immuno_profile_proxy(symptoms: str):
         "notes": "Proxy profiling from symptom text. Replace with your immunoinformatics pipeline.",
     }
 
-# ---------- Module 3: Gemini AI (3 Flash Preview) ----------
+# ---------- Module 3: Gemini AI (Flash Preview) ----------
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 gemini_key = os.getenv("GEMINI_API_KEY", "")
 gemini_client = genai.Client(api_key=gemini_key) if gemini_key else None
@@ -99,8 +99,7 @@ Write:
 Keep it concise.
 """.strip()
 
-    # Documented call pattern: client.models.generate_content(model=..., contents=...) [web:61]
-    resp = gemini_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+    resp = gemini_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)  # [web:61]
     return resp.text or ""
 
 # ---------- Module 4: Report ----------
