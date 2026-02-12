@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login - IMDS</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="container narrow">
+    <h1>Login</h1>
+    <p class="muted">Set DEMO_USER and DEMO_PASS in Render → Environment.</p>
+
+    {% if error %}
+      <div class="card error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login" class="card">
+      <label>Username</label>
+      <input name="username" required />
+
+      <label>Password</label>
+      <input name="password" type="password" required />
+
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>
