@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: imds-web
+    name: imds-capstone
     runtime: python
     plan: free
     autoDeploy: true
