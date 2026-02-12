@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Module 1 - ICD{% endblock %}
+{% block content %}
+<h1>Module 1: ICD Candidate Suggestion</h1>
+
+<form method="post" class="card">
+  <label>Symptoms</label>
+  <input name="symptoms" value="{{ symptoms }}" required />
+  <button type="submit">Suggest ICD</button>
+</form>
+
+{% if results %}
+  <div class="card">
+    <h3>Top matches</h3>
+    <ul>
+      {% for r in results %}
+        <li><b>{{ r.code }}</b> — {{ r.title }} (score={{ r.score }}, matched={{ r.matched }})</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+{% endblock %}
