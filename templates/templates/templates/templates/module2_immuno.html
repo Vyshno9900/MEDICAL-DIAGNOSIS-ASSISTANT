@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Module 2 - Immuno{% endblock %}
+{% block content %}
+<h1>Module 2: Immunoinformatics Profiling (Proxy)</h1>
+
+<form method="post" class="card">
+  <label>Symptoms</label>
+  <input name="symptoms" value="{{ symptoms }}" required />
+  <button type="submit">Profile</button>
+</form>
+
+{% if profile %}
+  <div class="card">
+    <p><b>Immune axis:</b> {{ profile.immune_axis }}</p>
+    <p><b>Inflammation score:</b> {{ profile.inflammation_score }}</p>
+    <p class="muted">{{ profile.notes }}</p>
+  </div>
+{% endif %}
+{% endblock %}
