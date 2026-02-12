@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Module 4 - Reports{% endblock %}
+{% block content %}
+<h1>Module 4: Report Generator</h1>
+
+<form method="post" class="card">
+  <label>Symptoms</label>
+  <input name="symptoms" value="{{ symptoms }}" required />
+  <button type="submit">Generate report</button>
+</form>
+
+{% if report %}
+  <div class="card">
+    <pre style="white-space: pre-wrap;">{{ report }}</pre>
+  </div>
+{% endif %}
+{% endblock %}
