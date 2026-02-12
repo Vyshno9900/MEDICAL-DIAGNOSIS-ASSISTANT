@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Module 3 - AI{% endblock %}
+{% block content %}
+<h1>Module 3: Gemini AI Explanation</h1>
+
+<form method="post" class="card">
+  <label>Symptoms</label>
+  <input name="symptoms" value="{{ symptoms }}" required />
+  <button type="submit">Generate</button>
+</form>
+
+{% if ai_text %}
+  <div class="card">
+    <pre style="white-space: pre-wrap;">{{ ai_text }}</pre>
+  </div>
+{% endif %}
+{% endblock %}
